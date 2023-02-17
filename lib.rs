@@ -134,7 +134,25 @@ mod reversi {
             self.place_disk(disk, x, y)?;
 
 
-            // == Decide next active player & End game if no players can place disks ==
+            // Opposite player can put disk? If yes, opponent's turn next.
+            if self.can_place(disk.opposite()) {
+                self.switch_active_player();
+                return Ok(())
+            }
+
+            // Same player can put disk? If yes, same player's turn again.
+            if self.can_place(disk) {
+                return Ok(())
+            }
+
+            // Game is over, count disks and decide winner
+            self.is_game_over = true;
+            let (player_1_disk_count, player_2_disk_count) = self.count_disks();
+            if player_1_disk_count > player_2_disk_count {
+                self.winner = self.players[0];
+            } else if player_1_disk_count < player_2_disk_count {
+                self.winner = self.players[1];
+            }
 
             Ok(())
         }
@@ -147,7 +165,7 @@ mod reversi {
             Disk::Black
         }
 
-        fn can_place(&self, disk: Disk, x: u8, y: u8) -> bool {
+        fn is_valid_place(&self, disk: Disk, x: u8, y: u8) -> bool {
             let x = x as i32;
             let y = y as i32;
 
@@ -161,7 +179,7 @@ mod reversi {
                 return false;
             }
 
-            let can_place = |disk: Disk, mut x: i32, mut y: i32, dx: i32, dy: i32| -> bool {
+            let is_valid_place = |disk: Disk, mut x: i32, mut y: i32, dx: i32, dy: i32| -> bool {
                 // Check one next square.
                 x += dx;
                 y += dy;
@@ -210,28 +228,28 @@ mod reversi {
             };
 
             // Check all 8 directions.
-            if can_place(disk, x, y, 1, 0) {
+            if is_valid_place(disk, x, y, 1, 0) {
                 return true;
             }
-            if can_place(disk, x, y, 0, 1) {
+            if is_valid_place(disk, x, y, 0, 1) {
                 return true;
             }
-            if can_place(disk, x, y, -1, 0) {
+            if is_valid_place(disk, x, y, -1, 0) {
                 return true;
             }
-            if can_place(disk, x, y, 0, -1) {
+            if is_valid_place(disk, x, y, 0, -1) {
                 return true;
             }
-            if can_place(disk, x, y, 1, 1) {
+            if is_valid_place(disk, x, y, 1, 1) {
                 return true;
             }
-            if can_place(disk, x, y, -1, -1) {
+            if is_valid_place(disk, x, y, -1, -1) {
                 return true;
             }
-            if can_place(disk, x, y, 1, -1) {
+            if is_valid_place(disk, x, y, 1, -1) {
                 return true;
             }
-            if can_place(disk, x, y, -1, 1) {
+            if is_valid_place(disk, x, y, -1, 1) {
                 return true;
             }
 
@@ -239,7 +257,7 @@ mod reversi {
         }
 
         fn place_disk(&mut self, disk: Disk, x: u8, y: u8) -> Result<(), String> {
-            if !self.can_place(disk, x, y) {
+            if !self.is_valid_place(disk, x, y) {
                 return Err(String::from("Cannot place disk"));
             }
 
@@ -267,6 +285,8 @@ mod reversi {
 
             let x = x as i32;
             let y = y as i32;
+
+            // flip disks in all 8 directions.
             flip_disks_in_direction(disk, x, y, 1, 0);
             flip_disks_in_direction(disk, x, y, 0, 1);
             flip_disks_in_direction(disk, x, y, -1, 0);
@@ -277,6 +297,17 @@ mod reversi {
             flip_disks_in_direction(disk, x, y, -1, 1);
 
             Ok(())
+        }
+
+        fn can_place(&self, disk: Disk) -> bool {
+            for i in 0..self.board_size {
+                for j in 0..self.board_size {
+                    if self.is_valid_place(disk, i, j) {
+                        return true;
+                    }
+                }
+            }
+            false
         }
 
         fn is_inside_board(&self, x: i32, y: i32) -> bool {
@@ -291,12 +322,27 @@ mod reversi {
             true
         }
 
-        fn next_turn(&mut self) {
+        fn switch_active_player(&mut self) {
             if self.active_player_index == 0 {
                 self.active_player_index = 1;
-            } else {
-                self.active_player_index = 0;
+                return;
             }
+            self.active_player_index = 0;
+        }
+        
+        fn count_disks(&self) -> (u8, u8) {
+            let (mut white_counts, mut black_counts) = (0, 0);
+            for i in 0..self.board_size as usize {
+                for j in 0..self.board_size as usize {
+                    if let Some(disk) = self.board.disks[j][i] {
+                        match disk {
+                            Disk::White => white_counts += 1,
+                            Disk::Black => black_counts += 1,
+                        }
+                    }
+                }
+            }
+            (white_counts, black_counts)
         }
     }
 
@@ -371,5 +417,86 @@ mod reversi {
             assert_eq!(reversi.get_board(), board);
         }
 
+        #[ink::test]
+        fn is_valid_place_ok_1() {
+            let default_accounts = default_accounts::<Environment>();
+            let reversi = Reversi::new(6, default_accounts.alice, default_accounts.bob);
+
+            //    0  1  2  3  4  5
+            // 0
+            // 1
+            // 2 　　　　⚪️ ⚫️
+            // 3        ⚫️ ⚪️
+            // 4
+            // 5
+            // 
+            assert!(reversi.is_valid_place(Disk::White, 3, 1));
+            assert!(reversi.is_valid_place(Disk::White, 4, 2));
+            assert!(reversi.is_valid_place(Disk::White, 1, 3));
+            assert!(reversi.is_valid_place(Disk::White, 2, 4));
+            assert_eq!(reversi.is_valid_place(Disk::White, 2, 1), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 2, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 3, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 0, 0), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 5, 6), false);
+
+            assert!(reversi.is_valid_place(Disk::Black, 2, 1));
+            assert!(reversi.is_valid_place(Disk::Black, 4, 3));
+            assert!(reversi.is_valid_place(Disk::Black, 3, 4));
+            assert!(reversi.is_valid_place(Disk::Black, 1, 2));
+            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 1), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 2, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 0, 0), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 6, 5), false);
+        }
+
+        #[ink::test]
+        fn is_valid_place_ok_2() {
+            let default_accounts = default_accounts::<Environment>();
+            let reversi = Reversi {
+                board_size: 6,
+                players: [default_accounts.alice, default_accounts.bob],
+                active_player_index: 0,
+                winner: ZERO_ADDRESS.into(),
+                is_game_over: false,
+                board: Board {
+                    disks: vec![
+                        vec![None; 6],
+                        vec![None, None, None, Some(Disk::White), None, None],
+                        vec![None, None, Some(Disk::Black), Some(Disk::White), Some(Disk::Black), None],
+                        vec![None, None, Some(Disk::Black), Some(Disk::White), None, None],
+                        vec![None; 6],
+                        vec![None; 6],
+                    ],
+                },
+            };
+
+            //    0  1  2  3  4  5
+            // 0
+            // 1          ⚪️
+            // 2 　　　　⚫️ ⚪️ ⚫ ️ 
+            // 3        ⚫️ ⚪️
+            // 4
+            // 5
+            // 
+            assert!(reversi.is_valid_place(Disk::White, 1, 2));
+            assert!(reversi.is_valid_place(Disk::White, 1, 3));
+            assert!(reversi.is_valid_place(Disk::White, 1, 4));
+            assert!(reversi.is_valid_place(Disk::White, 5, 2));
+            assert!(reversi.is_valid_place(Disk::White, 5, 3));
+            assert_eq!(reversi.is_valid_place(Disk::White, 2, 1), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 2, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 3, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 0, 0), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 5, 6), false);
+
+            assert!(reversi.is_valid_place(Disk::Black, 2, 0));
+            assert!(reversi.is_valid_place(Disk::Black, 4, 0));
+            assert!(reversi.is_valid_place(Disk::Black, 4, 4));
+            assert_eq!(reversi.is_valid_place(Disk::Black, 2, 1), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 0), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 4), false);
+        }
     }
 }

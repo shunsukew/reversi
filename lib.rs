@@ -429,26 +429,16 @@ mod reversi {
             // 3        ⚫️ ⚪️
             // 4
             // 5
-            // 
+            //
             assert!(reversi.is_valid_place(Disk::White, 3, 1));
             assert!(reversi.is_valid_place(Disk::White, 4, 2));
             assert!(reversi.is_valid_place(Disk::White, 1, 3));
             assert!(reversi.is_valid_place(Disk::White, 2, 4));
-            assert_eq!(reversi.is_valid_place(Disk::White, 2, 1), false);
-            assert_eq!(reversi.is_valid_place(Disk::White, 2, 2), false);
-            assert_eq!(reversi.is_valid_place(Disk::White, 3, 2), false);
-            assert_eq!(reversi.is_valid_place(Disk::White, 0, 0), false);
-            assert_eq!(reversi.is_valid_place(Disk::White, 5, 6), false);
 
             assert!(reversi.is_valid_place(Disk::Black, 2, 1));
             assert!(reversi.is_valid_place(Disk::Black, 4, 3));
             assert!(reversi.is_valid_place(Disk::Black, 3, 4));
             assert!(reversi.is_valid_place(Disk::Black, 1, 2));
-            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 1), false);
-            assert_eq!(reversi.is_valid_place(Disk::Black, 2, 2), false);
-            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 2), false);
-            assert_eq!(reversi.is_valid_place(Disk::Black, 0, 0), false);
-            assert_eq!(reversi.is_valid_place(Disk::Black, 6, 5), false);
         }
 
         #[ink::test]
@@ -479,24 +469,165 @@ mod reversi {
             // 3        ⚫️ ⚪️
             // 4
             // 5
-            // 
+            //
             assert!(reversi.is_valid_place(Disk::White, 1, 2));
             assert!(reversi.is_valid_place(Disk::White, 1, 3));
             assert!(reversi.is_valid_place(Disk::White, 1, 4));
             assert!(reversi.is_valid_place(Disk::White, 5, 2));
             assert!(reversi.is_valid_place(Disk::White, 5, 3));
+
+            assert!(reversi.is_valid_place(Disk::Black, 2, 0));
+            assert!(reversi.is_valid_place(Disk::Black, 4, 0));
+            assert!(reversi.is_valid_place(Disk::Black, 4, 4));
+        }
+
+        #[ink::test]
+        fn is_valid_place_fail_1() {
+            let default_accounts = default_accounts::<Environment>();
+            let reversi = Reversi::new(6, default_accounts.alice, default_accounts.bob);
+
+            //    0  1  2  3  4  5
+            // 0
+            // 1
+            // 2 　　　　⚪️ ⚫️
+            // 3        ⚫️ ⚪️
+            // 4
+            // 5
+            //
+
             assert_eq!(reversi.is_valid_place(Disk::White, 2, 1), false);
             assert_eq!(reversi.is_valid_place(Disk::White, 2, 2), false);
             assert_eq!(reversi.is_valid_place(Disk::White, 3, 2), false);
             assert_eq!(reversi.is_valid_place(Disk::White, 0, 0), false);
             assert_eq!(reversi.is_valid_place(Disk::White, 5, 6), false);
 
-            assert!(reversi.is_valid_place(Disk::Black, 2, 0));
-            assert!(reversi.is_valid_place(Disk::Black, 4, 0));
-            assert!(reversi.is_valid_place(Disk::Black, 4, 4));
+            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 1), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 2, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 3, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 0, 0), false);
+            assert_eq!(reversi.is_valid_place(Disk::Black, 6, 5), false);
+        }
+
+        #[ink::test]
+        fn is_valid_place_fail_2() {
+            let default_accounts = default_accounts::<Environment>();
+            let reversi = Reversi {
+                board_size: 6,
+                players: [default_accounts.alice, default_accounts.bob],
+                active_player_index: 0,
+                winner: ZERO_ADDRESS.into(),
+                is_game_over: false,
+                board: Board {
+                    disks: vec![
+                        vec![None; 6],
+                        vec![None, None, None, Some(Disk::White), None, None],
+                        vec![None, None, Some(Disk::Black), Some(Disk::White), Some(Disk::Black), None],
+                        vec![None, None, Some(Disk::Black), Some(Disk::White), None, None],
+                        vec![None; 6],
+                        vec![None; 6],
+                    ],
+                },
+            };
+
+            //    0  1  2  3  4  5
+            // 0
+            // 1          ⚪️
+            // 2 　　　　⚫️ ⚪️ ⚫ ️ 
+            // 3        ⚫️ ⚪️
+            // 4
+            // 5
+            //
+
+            assert_eq!(reversi.is_valid_place(Disk::White, 2, 1), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 2, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 3, 2), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 0, 0), false);
+            assert_eq!(reversi.is_valid_place(Disk::White, 5, 6), false);
+
             assert_eq!(reversi.is_valid_place(Disk::Black, 2, 1), false);
             assert_eq!(reversi.is_valid_place(Disk::Black, 3, 0), false);
             assert_eq!(reversi.is_valid_place(Disk::Black, 3, 4), false);
+        }
+
+        #[ink::test]
+        fn count_disks_ok() {
+            let default_accounts = default_accounts::<Environment>();
+            let reversi = Reversi::new(6, default_accounts.alice, default_accounts.bob);
+
+            //    0  1  2  3  4  5
+            // 0
+            // 1
+            // 2 　　　　⚪️ ⚫️
+            // 3        ⚫️ ⚪️
+            // 4
+            // 5
+            //
+
+            let (white_count, black_count) = reversi.count_disks();
+            assert_eq!(white_count, 2);
+            assert_eq!(black_count, 2);
+
+            let reversi = Reversi {
+                board_size: 6,
+                players: [default_accounts.alice, default_accounts.bob],
+                active_player_index: 0,
+                winner: ZERO_ADDRESS.into(),
+                is_game_over: false,
+                board: Board {
+                    disks: vec![
+                        vec![None; 6],
+                        vec![None, None, None, Some(Disk::White), None, None],
+                        vec![None, None, Some(Disk::Black), Some(Disk::White), Some(Disk::Black), None],
+                        vec![None, None, Some(Disk::Black), Some(Disk::White), None, None],
+                        vec![None; 6],
+                        vec![None; 6],
+                    ],
+                },
+            };
+
+            //    0  1  2  3  4  5
+            // 0
+            // 1          ⚪️
+            // 2 　　　　⚫️ ⚪️ ⚫ ️ 
+            // 3        ⚫️ ⚪️
+            // 4
+            // 5
+            //
+
+            let (white_count, black_count) = reversi.count_disks();
+            assert_eq!(white_count, 3);
+            assert_eq!(black_count, 3);
+
+            let reversi = Reversi {
+                board_size: 6,
+                players: [default_accounts.alice, default_accounts.bob],
+                active_player_index: 0,
+                winner: ZERO_ADDRESS.into(),
+                is_game_over: false,
+                board: Board {
+                    disks: vec![
+                        vec![None, None, None, None, Some(Disk::Black), None],
+                        vec![None, None, None, Some(Disk::Black), None, None],
+                        vec![None, Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
+                        vec![None, Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), None, None],
+                        vec![None, Some(Disk::White), None, Some(Disk::Black), None, None],
+                        vec![None; 6],
+                    ],
+                },
+            };
+
+            //    0  1  2  3  4  5
+            // 0             ⚫
+            // 1          ⚫
+            // 2 　　 ⚪ ⚪ ⚪ ⚪️ ️⚪️️
+            // 3      ⚫ ⚫ ⚫
+            // 4      ⚪️️   ⚫
+            // 5
+            //
+
+            let (white_count, black_count) = reversi.count_disks();
+            assert_eq!(white_count, 6);
+            assert_eq!(black_count, 6);
         }
     }
 }

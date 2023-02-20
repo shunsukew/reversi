@@ -222,6 +222,10 @@ mod reversi {
         fn place_disk(&mut self, disk: Disk, x: u8, y: u8) -> Result<(), ReversiError> {
             let mut flipped_disk_count = 0;
 
+            if self.board.disks[y as usize][x as usize].is_some() {
+                return Err(ReversiError::CannotPlaceDisk);
+            }
+
             // put disk at x,y position
             self.board.disks[y as usize][x as usize] = Some(disk);
 
@@ -725,7 +729,7 @@ mod reversi {
             let result = reversi.make_move(0, 4);
             assert!(result.is_ok());
             assert!(reversi.is_game_over());
-            assert_eq!(reversi.winner, default_accounts.alice);
+            assert_eq!(reversi.get_winner().unwrap(), default_accounts.alice);
             let (alice_count, bob_count) = reversi.count_disks();
             assert_eq!(alice_count, 31);
             assert_eq!(bob_count, 5);

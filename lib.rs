@@ -7,7 +7,6 @@ mod reversi {
             vec,
             vec::Vec
         },
-        prelude::string::String,
     };
 
     const ZERO_ADDRESS: [u8; 32] = [0; 32];
@@ -28,8 +27,8 @@ mod reversi {
     impl Disk {
         fn opposite(self) -> Self {
             match self {
-                Self::White => Self::Black,
                 Self::Black => Self::White,
+                Self::White => Self::Black,
             }
         }
     }
@@ -40,13 +39,14 @@ mod reversi {
         derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
     )]
     pub struct Board {
-        // player_1: White, player_2: Black
+        // player_1: Black, player_2: White
         disks: Vec<Vec<Option<Disk>>>,
     }
 
     impl Board {
         fn new(size: u8) -> Self {
-            assert!(size >= MIN_BOARD_SIZE && size <= MAX_BOARD_SIZE, "Board size is too big");
+            assert!(size >= MIN_BOARD_SIZE, "Board size is too small");
+            assert!(size <= MAX_BOARD_SIZE, "Board size is too big");
             assert!(size % 2 == 0, "Board size should be even number");
 
             let size = size as usize;
@@ -58,6 +58,18 @@ mod reversi {
             disks[size/2][size/2-1] = Some(Disk::Black);
             Self { disks }
         }
+    }
+
+    #[derive(Clone, Debug, scale::Decode, scale::Encode)]
+    #[cfg_attr(
+        feature = "std",
+        derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
+    )]
+    pub enum ReversiError {
+        InvalidPlayer,
+        CannotPlaceDisk,
+        GameIsOver,
+        GameIsNotOver,
     }
 
     #[ink(storage)]
@@ -112,22 +124,22 @@ mod reversi {
         }
 
         #[ink(message)]
-        pub fn get_winner(&self) -> Result<AccountId, String> {
+        pub fn get_winner(&self) -> Result<AccountId, ReversiError> {
             if !self.is_game_over() {
-                return Err(String::from("The game has not ended"))
+                return Err(ReversiError::GameIsNotOver)
             }
             Ok(self.winner)
         }
 
         #[ink(message)]
-        pub fn make_move(&mut self, x: u8, y: u8) -> Result<(), String> {
+        pub fn make_move(&mut self, x: u8, y: u8) -> Result<(), ReversiError> {
             if self.is_game_over {
-                return Err(String::from("The game has already ended"));
+                return Err(ReversiError::GameIsOver);
             }
 
             let player = Self::env().caller();
             if !self.is_active(player) {
-                return Err(String::from("Invalid player"))
+                return Err(ReversiError::InvalidPlayer)
             }
 
             let disk = self.get_own_disk(player);
@@ -159,9 +171,9 @@ mod reversi {
         // player_1 uses White disk, player_2 uses Black one.
         pub fn get_own_disk(&self, player: AccountId) -> Disk {
             if self.players[0] == player {
-                return Disk::White;
+                return Disk::Black;
             }
-            Disk::Black
+            Disk::White
         }
 
         fn is_valid_place(&self, disk: Disk, x: u8, y: u8) -> bool {
@@ -207,7 +219,7 @@ mod reversi {
             false
         }
 
-        fn place_disk(&mut self, disk: Disk, x: u8, y: u8) -> Result<(), String> {
+        fn place_disk(&mut self, disk: Disk, x: u8, y: u8) -> Result<(), ReversiError> {
             let mut flipped_disk_count = 0;
 
             // put disk at x,y position
@@ -255,7 +267,7 @@ mod reversi {
             flipped_disk_count += flip_disks(disk, x, y, -1, 1);
 
             if flipped_disk_count == 0 {
-                return Err(String::from("Cannot place disk"))
+                return Err(ReversiError::CannotPlaceDisk)
             }
 
             Ok(())
@@ -293,18 +305,18 @@ mod reversi {
         }
         
         fn count_disks(&self) -> (u8, u8) {
-            let (mut white_counts, mut black_counts) = (0, 0);
+            let (mut black_counts, mut white_counts) = (0, 0);
             for i in 0..self.board_size as usize {
                 for j in 0..self.board_size as usize {
                     if let Some(disk) = self.board.disks[j][i] {
                         match disk {
-                            Disk::White => white_counts += 1,
                             Disk::Black => black_counts += 1,
+                            Disk::White => white_counts += 1,
                         }
                     }
                 }
             }
-            (white_counts, black_counts)
+            (black_counts, white_counts)
         }
 
         fn is_flippable_direction(&self, disk: Disk, mut x: i32, mut y: i32, dx: i32, dy: i32) -> bool {
@@ -519,15 +531,6 @@ mod reversi {
             let default_accounts = default_accounts::<Environment>();
             let reversi = Reversi::new(6, default_accounts.alice, default_accounts.bob);
 
-            //    0  1  2  3  4  5
-            // 0
-            // 1
-            // 2 　　　　⚪️ ⚫️
-            // 3        ⚫️ ⚪️
-            // 4        
-            // 5
-            //
-
             let (white_count, black_count) = reversi.count_disks();
             assert_eq!(white_count, 2);
             assert_eq!(black_count, 2);
@@ -700,22 +703,22 @@ mod reversi {
                 is_game_over: false,
                 board: Board {
                     disks: vec![
-                        vec![Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
-                        vec![Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
-                        vec![Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
-                        vec![Some(Disk::Black), Some(Disk::Black), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
-                        vec![None, Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black)],
-                        vec![Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
+                        vec![Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black)],
+                        vec![Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black)],
+                        vec![Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black)],
+                        vec![Some(Disk::White), Some(Disk::White), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black)],
+                        vec![None, Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White), Some(Disk::White)],
+                        vec![Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black), Some(Disk::Black)],
                     ],
                 },
             };
             //    0  1  2  3  4  5
-            // 0  ⚪ ⚪ ⚪ ⚪ ⚪️️️️  ⚪️️
-            // 1  ⚪ ⚪ ⚪ ⚪ ⚪️️ ⚪
-            // 2　⚪ ⚪ ⚪ ⚪ ⚪️ ️⚪️️
-            // 3  ⚫ ⚫  ⚪ ⚪ ⚪ ⚪
-            // 4     ⚫  ⚫ ⚫ ⚫ ⚫
-            // 5  ⚪ ⚪  ⚪  ⚪ ⚪ ⚪
+            // 0  ⚫ ⚫ ⚫ ⚫ ⚫ ⚫
+            // 1  ⚫ ⚫ ⚫ ⚫ ⚫ ⚫
+            // 2  ⚫ ⚫ ⚫ ⚫ ⚫ ️⚫
+            // 3  ⚪ ⚪ ⚫ ⚫ ⚫ ⚫
+            // 4    ⚪ ⚪ ⚪ ⚪ ⚪
+            // 5  ⚫ ⚫ ⚫ ⚫ ⚫ ⚫ 
             //
 
             // Alice (player 1, white disk) place disk at position (0, 4) 
@@ -727,5 +730,10 @@ mod reversi {
             assert_eq!(alice_count, 31);
             assert_eq!(bob_count, 5);
         }
+    }
+
+    #[ink::test]
+    fn place_disk_fail() {
+
     }
 }
